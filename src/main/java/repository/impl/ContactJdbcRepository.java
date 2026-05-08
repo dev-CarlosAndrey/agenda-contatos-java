@@ -35,8 +35,8 @@ public class ContactJdbcRepository implements ContactRepository {
             preparedStatement.setString(3, contact.getCategory());
             preparedStatement.executeUpdate();
 
-            try (ResultSet rs = preparedStatement.getGeneratedKeys()) {
-                if (rs.next()) return rs.getInt(1);
+            try (ResultSet resultSet = preparedStatement.getGeneratedKeys()) {
+                if (resultSet.next()) return resultSet.getInt(1);
                 throw new SQLException("Falha ao obter ID do contato.");
             }
         }
@@ -65,7 +65,7 @@ public class ContactJdbcRepository implements ContactRepository {
              Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(sql)) {
             while (resultSet.next()) {
-                contacts.add(mapResultSetToContact(resultSet));
+                contacts.add(mapResultSetToContact(resultSet, connection));
             }
         } catch (SQLException exception) {
             throw new DatabaseIntegrityException("Erro ao listar contatos", exception);
@@ -75,23 +75,37 @@ public class ContactJdbcRepository implements ContactRepository {
 
     @Override
     public void update(Contact contact) {
-        String sql = "UPDATE contacts SET name = ?, email = ?, category = ? WHERE id = ?";
+        String sqlUpdateContact = "UPDATE contacts SET name = ?, email = ?, category = ? WHERE id = ?";
+        String sqlDeletePhones = "DELETE FROM phones WHERE contact_id = ?";
 
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            connection.setAutoCommit(false);
 
-            preparedStatement.setString(1, contact.getName());
-            preparedStatement.setString(2, contact.getEmail());
-            preparedStatement.setString(3, contact.getCategory());
-            preparedStatement.setInt(4, contact.getId());
+            try (PreparedStatement preparedStatementContact = connection.prepareStatement(sqlUpdateContact);
+                 PreparedStatement preparedStatementPhones = connection.prepareStatement(sqlDeletePhones)) {
 
-            int rowsAffected = preparedStatement.executeUpdate();
-            if (rowsAffected == 0) {
-                throw new ContactNotFoundException("Não foi possível atualizar: Contato com ID " + contact.getId() + " não existe.");
+                preparedStatementContact.setString(1, contact.getName());
+                preparedStatementContact.setString(2, contact.getEmail());
+                preparedStatementContact.setString(3, contact.getCategory());
+                preparedStatementContact.setInt(4, contact.getId());
+
+                int rowsAffected = preparedStatementContact.executeUpdate();
+                if (rowsAffected == 0) {
+                    throw new ContactNotFoundException("Contato não encontrado.");
+                }
+
+                preparedStatementPhones.setInt(1, contact.getId());
+                preparedStatementPhones.executeUpdate();
+
+                insertPhones(connection, contact);
+
+                connection.commit();
+            } catch (SQLException e) {
+                connection.rollback();
+                throw e;
             }
-
         } catch (SQLException exception) {
-            throw new DatabaseIntegrityException("Erro ao atualizar contato", exception);
+            throw new DatabaseIntegrityException("Erro ao atualizar contato e telefones", exception);
         }
     }
 
@@ -123,7 +137,7 @@ public class ContactJdbcRepository implements ContactRepository {
             preparedStatement.setString(1, email);
             try (ResultSet resultSet = preparedStatement.executeQuery()) {
                 if (resultSet.next()) {
-                    return Optional.of(mapResultSetToContact(resultSet));
+                    return Optional.of(mapResultSetToContact(resultSet, connection));
                 }
             }
         } catch (SQLException exception) {
@@ -142,7 +156,7 @@ public class ContactJdbcRepository implements ContactRepository {
             preparedStatement.setString(1, "%" + name + "%");
             try (ResultSet resultSet = preparedStatement.executeQuery()) {
                 while (resultSet.next()) {
-                    contacts.add(mapResultSetToContact(resultSet));
+                    contacts.add(mapResultSetToContact(resultSet, connection));
                 }
             }
         } catch (SQLException exception) {
@@ -155,14 +169,14 @@ public class ContactJdbcRepository implements ContactRepository {
     public Optional<Contact> findById(int id) {
         String sql = "SELECT * FROM contacts WHERE id = ?";
 
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
 
-            pstmt.setInt(1, id);
+            preparedStatement.setInt(1, id);
 
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return Optional.of(mapResultSetToContact(rs));
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                if (resultSet.next()) {
+                    return Optional.of(mapResultSetToContact(resultSet, connection));
                 }
             }
         } catch (SQLException e) {
@@ -176,14 +190,14 @@ public class ContactJdbcRepository implements ContactRepository {
         List<Contact> contacts = new ArrayList<>();
         String sql = "SELECT * FROM contacts WHERE category = ?";
 
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
 
-            pstmt.setString(1, category);
+            preparedStatement.setString(1, category);
 
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    contacts.add(mapResultSetToContact(rs));
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                while (resultSet.next()) {
+                    contacts.add(mapResultSetToContact(resultSet, connection));
                 }
             }
         } catch (SQLException e) {
@@ -192,12 +206,25 @@ public class ContactJdbcRepository implements ContactRepository {
         return contacts;
     }
 
-    private Contact mapResultSetToContact(ResultSet rs) throws SQLException {
+    private void loadPhones(Connection conn, Contact contact) throws SQLException {
+        String sql = "SELECT phone_number FROM phones WHERE contact_id = ?";
+        try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
+            preparedStatement.setInt(1, contact.getId());
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                while (resultSet.next()) {
+                    contact.getPhones().add(resultSet.getString("phone_number"));
+                }
+            }
+        }
+    }
+
+    private Contact mapResultSetToContact(ResultSet resultSet, Connection connection) throws SQLException {
         Contact contact = new Contact();
-        contact.setId(rs.getInt("id"));
-        contact.setName(rs.getString("name"));
-        contact.setEmail(rs.getString("email"));
-        contact.setCategory(rs.getString("category"));
+        contact.setId(resultSet.getInt("id"));
+        contact.setName(resultSet.getString("name"));
+        contact.setEmail(resultSet.getString("email"));
+        contact.setCategory(resultSet.getString("category"));
+        loadPhones(connection, contact);
         return contact;
     }
 }

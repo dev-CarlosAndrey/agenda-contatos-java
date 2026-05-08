@@ -4,6 +4,7 @@ import exception.ContactNotFoundException;
 import exception.DatabaseIntegrityException;
 import model.Contact;
 import repository.ContactRepository;
+import util.Validation;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,9 +17,7 @@ public class ContactService {
     }
 
     public void saveContact(Contact contact) throws Exception {
-        if (contact.getName() == null || contact.getName().trim().isEmpty()){
-            throw new DatabaseIntegrityException("O nome é obrigatório!");
-        }
+        validateContact(contact);
 
         Optional<Contact> existing = contactRepository.findByEmail(contact.getEmail());
         if (existing.isPresent()) {
@@ -45,9 +44,7 @@ public class ContactService {
     }
 
     public void updateContact(Contact contact) {
-        if (contact.getName() == null || contact.getName().trim().isEmpty()) {
-            throw new DatabaseIntegrityException("O nome não pode ser vazio ao atualizar o contato.");
-        }
+        validateContact(contact);
 
         if (contactRepository.findById(contact.getId()).isEmpty()) {
             throw new ContactNotFoundException("Não foi possível atualizar: Contato com ID " + contact.getId() + " não encontrado.");
@@ -69,5 +66,23 @@ public class ContactService {
             throw new ContactNotFoundException("Não foi possível excluir: Contato com ID " + id + " não encontrado.");
         }
         contactRepository.delete(id);
+    }
+
+    private void validateContact(Contact contact) {
+        if (contact.getName() == null || contact.getName().trim().isEmpty()){
+            throw new DatabaseIntegrityException("O nome é obrigatório!");
+        }
+
+        if (!Validation.isValidEmail(contact.getEmail())) {
+            throw new DatabaseIntegrityException("O formato do e-mail é inválido!");
+        }
+
+        if (contact.getPhones() != null) {
+            for (String phone : contact.getPhones()) {
+                if (!Validation.isValidPhone(phone)) {
+                    throw new DatabaseIntegrityException("Formato de telefone inválido: " + phone);
+                }
+            }
+        }
     }
 }

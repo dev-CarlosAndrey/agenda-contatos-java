@@ -72,7 +72,6 @@ public class ContactMenu {
 
             Contact contact = new Contact(name, email, category);
 
-            // Bônus: Múltiplos telefones[cite: 1]
             System.out.print("Digite o telefone (ou deixe vazio para finalizar): ");
             String phoneInput = scanner.nextLine();
 
@@ -108,7 +107,7 @@ public class ContactMenu {
     private void remove() throws Exception {
         System.out.print("Digite o ID do contato que deseja remover: ");
         int id = Integer.parseInt(scanner.nextLine());
-        System.out.print("Tem certeza que deseja excluir este contato? (S/N): "); // Confirmação exigida[cite: 1]
+        System.out.print("Tem certeza que deseja excluir este contato? (S/N): ");
         if (scanner.nextLine().equalsIgnoreCase("S")) {
             contactService.deleteContact(id);
             System.out.println("Contato removido com sucesso.");
@@ -166,6 +165,13 @@ public class ContactMenu {
         System.out.println("Nome: " + c.getName());
         System.out.println("E-mail: " + c.getEmail());
         System.out.println("Categoria: " + c.getCategory());
+
+        if (c.getPhones() != null && !c.getPhones().isEmpty()) {
+            System.out.println("Telefones:");
+            c.getPhones().forEach(p -> System.out.println("  - " + p));
+        } else {
+            System.out.println("Telefones: (Nenhum cadastrado)");
+        }
         System.out.println("----------------------------");
     }
 
@@ -178,35 +184,50 @@ public class ContactMenu {
 
             if (optionalContact.isPresent()) {
                 Contact contact = optionalContact.get();
-                System.out.println("Contato encontrado: " + contact.getName());
+                System.out.println("\n--- Editando: " + contact.getName() + " ---");
 
-                System.out.print("Novo Nome (ou Enter para manter): ");
+                System.out.print("Novo Nome (ou Enter para manter '" + contact.getName() + "'): ");
                 String newName = scanner.nextLine();
                 if (!newName.isEmpty()) contact.setName(newName);
 
-                System.out.print("Novo E-mail (ou Enter para manter): ");
-                String newEmail = scanner.nextLine();
-                if (!newEmail.isEmpty()) contact.setEmail(newEmail);
-
-                System.out.print("Nova Categoria (Friend, Work, Family, Other ou Enter para manter): ");
-                String newCategory = scanner.nextLine();
-                if (!newCategory.isEmpty()) {
-                    if (newCategory.matches("(Friend|Work|Family|Other)")) {
-                        contact.setCategory(newCategory);
-                    } else {
-                        System.out.println("⚠️ Categoria inválida! Mantendo a anterior.");
+                while (true) {
+                    System.out.print("Novo E-mail (ou Enter para manter '" + contact.getEmail() + "'): ");
+                    String newEmail = scanner.nextLine();
+                    if (newEmail.isEmpty()) break;
+                    if (Validation.isValidEmail(newEmail)) {
+                        contact.setEmail(newEmail);
+                        break;
                     }
+                    System.out.println("Formato de e-mail inválido!");
+                }
+
+                System.out.println("Telefones atuais: " + (contact.getPhones().isEmpty() ? "Nenhum" : contact.getPhones()));
+                System.out.print("Deseja (A)dicionar novo, (L)impar todos ou (M)anter atual? ");
+                String phoneOp = scanner.nextLine().toUpperCase();
+
+                if (phoneOp.equals("A")) {
+                    System.out.print("Digite o novo telefone (DDDNúmero): ");
+                    String newPhone = scanner.nextLine().replaceAll("[\\s()+-]", "");
+                    if (Validation.isValidPhone(newPhone)) {
+                        contact.getPhones().add(newPhone);
+                    } else {
+                        System.out.println("Formato inválido!");
+                    }
+                } else if (phoneOp.equals("L")) {
+                    contact.getPhones().clear();
                 }
 
                 contactService.updateContact(contact);
-                System.out.println("✅ Contato atualizado com sucesso!");
+                System.out.println("Contato atualizado com sucesso!");
+
             } else {
-                System.out.println("⚠️ Contato não encontrado.");
+                System.out.println("Contato não encontrado.");
             }
         } catch (Exception e) {
-            System.out.println("❌ Erro ao atualizar: " + e.getMessage());
+            System.out.println("Erro: " + e.getMessage());
         }
     }
+
 
     private void listByCategory() {
         System.out.println("\n--- FILTRAR POR CATEGORIA ---");
