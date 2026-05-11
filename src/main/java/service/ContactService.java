@@ -11,9 +11,11 @@ import java.util.Optional;
 
 public class ContactService {
     private final ContactRepository contactRepository;
+    private final ExportService<Contact> exportService;
 
-    public ContactService(ContactRepository contactRepository){
+    public ContactService(ContactRepository contactRepository, ExportService<Contact> exportService){
         this.contactRepository = contactRepository;
+        this.exportService = exportService;
     }
 
     public void saveContact(Contact contact) throws Exception {
@@ -84,5 +86,15 @@ public class ContactService {
                 }
             }
         }
+    }
+
+    public void exportContacts(String path) throws Exception {
+        List<Contact> contacts = contactRepository.findAll();
+        exportService.export(contacts, path);
+    }
+
+    public List<Contact> getContactsPaged(int limit, int offset) {
+        if (limit <= 0) limit = 10;
+        return contactRepository.findAllPaged(limit, offset);
     }
 }

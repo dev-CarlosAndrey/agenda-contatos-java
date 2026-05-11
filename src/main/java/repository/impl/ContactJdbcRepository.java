@@ -218,6 +218,28 @@ public class ContactJdbcRepository implements ContactRepository {
         }
     }
 
+    @Override
+    public List<Contact> findAllPaged(int limit, int offset) {
+        List<Contact> contacts = new ArrayList<>();
+        String sql = "SELECT * FROM contacts LIMIT ? OFFSET ?";
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+
+            preparedStatement.setInt(1, limit);
+            preparedStatement.setInt(2, offset);
+
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                while (resultSet.next()) {
+                    contacts.add(mapResultSetToContact(resultSet, connection));
+                }
+            }
+        } catch (SQLException exception) {
+            throw new DatabaseIntegrityException("Erro ao listar contatos com paginação", exception);
+        }
+        return contacts;
+    }
+
     private Contact mapResultSetToContact(ResultSet resultSet, Connection connection) throws SQLException {
         Contact contact = new Contact();
         contact.setId(resultSet.getInt("id"));

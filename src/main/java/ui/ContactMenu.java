@@ -19,7 +19,7 @@ public class ContactMenu {
 
     public void start() {
         int option = -1;
-        while (option != 7) {
+        while (option != 9) {
             System.out.println("\n--- AGENDA DE CONTATOS ---");
             System.out.println("1. Cadastrar Contato");
             System.out.println("2. Listar Todos");
@@ -27,7 +27,9 @@ public class ContactMenu {
             System.out.println("4. Atualizar Contato");
             System.out.println("5. Remover Contato");
             System.out.println("6. Listar por Categoria");
-            System.out.println("7. Sair");
+            System.out.println("7. Listar com Paginação");
+            System.out.println("8. Exportar para CSV");
+            System.out.println("9. Sair");
             System.out.print("Escolha uma opção: ");
 
             try {
@@ -47,7 +49,9 @@ public class ContactMenu {
             case 4 -> update();
             case 5 -> remove();
             case 6 -> listByCategory();
-            case 7 -> System.out.println("Saindo do sistema...");
+            case 7 -> listPaged();
+            case 8 -> exportCSV();
+            case 9 -> System.out.println("Saindo ...");
             default -> System.out.println("Opção inválida!");
         }
     }
@@ -67,7 +71,7 @@ public class ContactMenu {
                 System.out.println("Formato de e-mail inválido! Tente novamente (ex: usuario@email.com).");
             }
 
-            System.out.print("Categoria (Amigos, Trabalho, Familia, Outros): ");
+            System.out.print("Categoria (Friend, Work, Family, Other): ");
             String category = scanner.nextLine();
 
             Contact contact = new Contact(name, email, category);
@@ -244,6 +248,56 @@ public class ContactMenu {
             contacts.forEach(c ->
                     System.out.printf("%-5d | %-20s | %-25s\n", c.getId(), c.getName(), c.getEmail())
             );
+        }
+    }
+
+    private void listPaged() {
+        int pageSize = 5;
+        int currentPage = 0;
+
+        while (true) {
+            int offset = currentPage * pageSize;
+            List<Contact> contacts = contactService.getContactsPaged(pageSize, offset);
+
+            if (contacts.isEmpty()) {
+                System.out.println("\n--- Fim dos registros ou página vazia ---");
+                if (currentPage > 0) {
+                    System.out.println("Retornando para a página anterior...");
+                    currentPage--;
+                    continue;
+                }
+                break;
+            }
+
+            System.out.println("\n--- PÁGINA " + (currentPage + 1) + " ---");
+            System.out.printf("%-5s | %-20s | %-25s\n", "ID", "NOME", "E-MAIL");
+            contacts.forEach(c ->
+                    System.out.printf("%-5d | %-20s | %-25s\n", c.getId(), c.getName(), c.getEmail())
+            );
+
+            System.out.print("\n(P)róxima página, (A)nterior ou (S)air: ");
+            String op = scanner.nextLine().toUpperCase();
+
+            if (op.equals("P")) {
+                currentPage++;
+            } else if (op.equals("A")) {
+                if (currentPage > 0) currentPage--;
+                else System.out.println("Você já está na primeira página!");
+            } else {
+                break;
+            }
+        }
+    }
+
+    private void exportCSV() {
+        try {
+            System.out.println("\n--- EXPORTAR CONTATOS ---");
+            String path = "agenda_contatos.csv";
+            contactService.exportContacts(path);
+            System.out.println("Arquivo '" + path + "' gerado com sucesso!");
+            System.out.println("Dica: Você pode abri-lo no Excel ou Bloco de Notas.");
+        } catch (Exception e) {
+            System.out.println("Erro ao exportar: " + e.getMessage());
         }
     }
 

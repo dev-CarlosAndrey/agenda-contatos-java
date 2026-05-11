@@ -10,6 +10,7 @@ public interface ContactRepository {
     List<Contact> findAll();
     void update(Contact contact);
     void delete(int id);
+    List<Contact> findAllPaged(int limit, int offset);
 
     Optional<Contact> findById(int id);
     List<Contact> findByName(String name);
